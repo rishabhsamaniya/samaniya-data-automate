@@ -1,0 +1,11 @@
+pandas
+openpyxl
+requests
+beautifulsoup4
+selenium
+streamlit
+webdriver-manager
+tqdm
+googlesearch-python
+lxml
+python-dotenv
