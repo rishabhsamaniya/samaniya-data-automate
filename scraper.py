@@ -4,6 +4,8 @@ import time
 import random
 import logging
 import re
+import os
+import platform
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -25,11 +27,21 @@ class ExperienceScraper:
             chrome_options.add_argument("--headless")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--disable-blink-features=AutomationControlled")
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             chrome_options.add_argument(f"user-agent={get_random_user_agent()}")
-            service = Service(ChromeDriverManager().install())
+            
+            # Detect environment: Streamlit Cloud (Linux) vs Local (Mac/Windows)
+            if platform.system() == "Linux":
+                # Paths for chromium on Streamlit Cloud (via packages.txt)
+                chrome_options.binary_location = "/usr/bin/chromium"
+                service = Service("/usr/bin/chromedriver")
+            else:
+                # Local development
+                service = Service(ChromeDriverManager().install())
+                
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
                 "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
