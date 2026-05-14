@@ -113,40 +113,43 @@ def experience_enrichment_tab():
             total_rows = len(df)
             start_time = time.time()
             
-            for i, row in df.iterrows():
-                name, city = str(row.get(name_col, "")), str(row.get(city_col, ""))
-                if not name: continue
-                
-                # Status Update
-                completed = i + 1
-                percent = int((completed / total_rows) * 100)
-                
-                # Time Estimation
-                elapsed = time.time() - start_time
-                avg_time_per_row = elapsed / completed if completed > 0 else 0
-                remaining_rows = total_rows - completed
-                est_remaining = avg_time_per_row * remaining_rows
-                
-                # Format time string
-                if est_remaining >= 60:
-                    time_str = f"{int(est_remaining // 60)} min {int(est_remaining % 60)} sec"
-                else:
-                    time_str = f"{int(est_remaining)} sec"
-
-                status_text.markdown(f"🔍 Processing: **{name}** in **{city}** ({completed}/{total_rows})")
-                timer_text.markdown(f"📊 **Progress: {percent}%** | ⏳ **Estimated Time Remaining: {time_str}**")
-                
-                res = scraper.scrape_business_data(name, city)
-                results.append({
-                    "Name": name, 
-                    "City": city, 
-                    "Contact Number": res["Contact Number"],
-                    "Source URL": res["Source URL"],
-                    "Confidence": res["Confidence Score"]
-                })
-                
-                progress_bar.progress(completed / total_rows)
-                time.sleep(1)
+            try:
+                for i, row in df.iterrows():
+                    name, city = str(row.get(name_col, "")), str(row.get(city_col, ""))
+                    if not name: continue
+                    
+                    # Status Update
+                    completed = i + 1
+                    percent = int((completed / total_rows) * 100)
+                    
+                    # Time Estimation
+                    elapsed = time.time() - start_time
+                    avg_time_per_row = elapsed / completed if completed > 0 else 0
+                    remaining_rows = total_rows - completed
+                    est_remaining = avg_time_per_row * remaining_rows
+                    
+                    # Format time string
+                    if est_remaining >= 60:
+                        time_str = f"{int(est_remaining // 60)} min {int(est_remaining % 60)} sec"
+                    else:
+                        time_str = f"{int(est_remaining)} sec"
+    
+                    status_text.markdown(f"🔍 Processing: **{name}** in **{city}** ({completed}/{total_rows})")
+                    timer_text.markdown(f"📊 **Progress: {percent}%** | ⏳ **Estimated Time Remaining: {time_str}**")
+                    
+                    res = scraper.scrape_business_data(name, city)
+                    results.append({
+                        "Name": name, 
+                        "City": city, 
+                        "Contact Number": res["Contact Number"],
+                        "Source URL": res["Source URL"],
+                        "Confidence": res["Confidence Score"]
+                    })
+                    
+                    progress_bar.progress(completed / total_rows)
+                    time.sleep(1)
+            finally:
+                scraper.cleanup()
             
             res_df = pd.DataFrame(results)
             st.success("✅ Enrichment Complete!")

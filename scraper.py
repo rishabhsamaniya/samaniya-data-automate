@@ -20,6 +20,15 @@ class ExperienceScraper:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": get_random_user_agent()})
         self.driver = None
+        self.search_count = 0
+
+    def cleanup(self):
+        if self.driver:
+            try:
+                self.driver.quit()
+            except:
+                pass
+            self.driver = None
 
     def _init_driver(self):
         if not self.driver:
@@ -55,32 +64,82 @@ class ExperienceScraper:
             return response.text
         except: return None
 
-    def _perform_search(self, query, city, biz_name):
-        self._init_driver()
-        search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-        logger.info(f"Searching: {search_url}")
-        
+    def _search_duckduckgo(self, query):
+        url = "https://html.duckduckgo.com/html/"
+        headers = {
+            "User-Agent": get_random_user_agent(),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        data = {"q": query}
         try:
-            self.driver.get(search_url)
-            time.sleep(random.uniform(3, 5))
-            
-            soup = BeautifulSoup(self.driver.page_source, "html.parser")
-            
-            # Extract URLs
+            response = self.session.post(url, headers=headers, data=data, timeout=15)
+            soup = BeautifulSoup(response.text, "html.parser")
             links = []
-            for g in soup.find_all('div', class_='g'):
-                a = g.find('a')
-                if a and a.get('href', '').startswith('http'):
-                    links.append(a['href'])
-            
-            # Extract text for snippet validation
+            for a in soup.find_all('a', class_='result__url'):
+                href = a.get('href')
+                if href and href.startswith('http'):
+                    links.append(href)
             page_text = soup.get_text()
-            numbers = extract_indian_phone_numbers(page_text, city=city, biz_name=biz_name)
-            
-            return links, numbers
+            return links, page_text
         except Exception as e:
-            logger.error(f"Search error: {e}")
-            return [], []
+            logger.error(f"DDG Search error: {e}")
+            return [], ""
+
+    def _perform_search(self, query, city, biz_name):
+        links = []
+        numbers = []
+        
+        # 1. Primary approach: DuckDuckGo (Faster, no Selenium overhead)
+        ddg_links, ddg_text = self._search_duckduckgo(query)
+        if ddg_links:
+            links.extend(ddg_links)
+        if ddg_text:
+            ddg_numbers = extract_indian_phone_numbers(ddg_text, city=city, biz_name=biz_name)
+            if ddg_numbers:
+                numbers.extend(ddg_numbers)
+                
+        # 2. Fallback: Google via Selenium
+        if not links:
+            self._init_driver()
+            self.search_count += 1
+            
+            # Restart driver periodically to avoid memory leaks and Captchas
+            if self.search_count % 10 == 0:
+                logger.info("Restarting browser to prevent rate limits...")
+                self.cleanup()
+                self._init_driver()
+
+            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+            logger.info(f"Searching Google: {search_url}")
+            
+            try:
+                self.driver.get(search_url)
+                time.sleep(random.uniform(3, 5))
+                
+                soup = BeautifulSoup(self.driver.page_source, "html.parser")
+                
+                # Check for block
+                page_lower = self.driver.page_source.lower()
+                if "captcha" in page_lower or "did not match any documents" in page_lower:
+                    logger.warning("Google block/captcha detected. Restarting driver.")
+                    self.cleanup()
+                else:
+                    for g in soup.find_all('div', class_='g'):
+                        a = g.find('a')
+                        if a and a.get('href', '').startswith('http'):
+                            links.append(a['href'])
+                    
+                    page_text = soup.get_text()
+                    google_numbers = extract_indian_phone_numbers(page_text, city=city, biz_name=biz_name)
+                    if google_numbers:
+                        numbers.extend(google_numbers)
+                        
+            except Exception as e:
+                logger.error(f"Search error: {e}")
+                self.cleanup()
+                
+        return list(dict.fromkeys(links)), list(dict.fromkeys(numbers))
 
     def scrape_business_data(self, name, city):
         # Generic precise query
@@ -141,5 +200,5 @@ class ExperienceScraper:
                 if progress_callback: progress_callback(index + 1, len(df))
                 time.sleep(random.uniform(2, 4))
         finally:
-            if self.driver: self.driver.quit()
+            self.cleanup()
         return enriched_data
