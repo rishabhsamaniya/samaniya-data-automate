@@ -149,19 +149,18 @@ def experience_enrichment_tab():
                     
                     results.append(row_data)
                     
-                    # Auto-save every 20 records to prevent data loss
+                    # Auto-save every 20 records to prevent data loss (using dotfile to prevent Streamlit reload)
                     if completed % 20 == 0:
-                        pd.DataFrame(results).to_csv("auto_save_backup.csv", index=False)
+                        pd.DataFrame(results).to_csv(".auto_save_backup.csv", index=False)
                         
                     progress_bar.progress(completed / total_rows)
-                    time.sleep(1)
             except Exception as e:
                 st.error(f"⚠️ An unexpected error occurred: {e}")
             finally:
                 scraper.cleanup()
                 # Always save whatever we have gathered so far
                 if results:
-                    pd.DataFrame(results).to_csv("auto_save_backup.csv", index=False)
+                    pd.DataFrame(results).to_csv(".auto_save_backup.csv", index=False)
             
             res_df = pd.DataFrame(results)
             st.success("✅ Enrichment Complete!")
