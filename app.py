@@ -138,13 +138,16 @@ def experience_enrichment_tab():
                     timer_text.markdown(f"📊 **Progress: {percent}%** | ⏳ **Estimated Time Remaining: {time_str}**")
                     
                     res = scraper.scrape_business_data(name, city)
-                    results.append({
-                        "Name": name, 
-                        "City": city, 
-                        "Contact Number": res["Contact Number"],
-                        "Source URL": res["Source URL"],
-                        "Confidence": res["Confidence Score"]
-                    })
+                    
+                    # Create a dictionary from the original row to preserve all columns (like ID)
+                    row_data = row.to_dict()
+                    
+                    # Add our new scraped data
+                    row_data["Contact Number"] = res["Contact Number"]
+                    row_data["Source URL"] = res["Source URL"]
+                    row_data["Confidence"] = res["Confidence Score"]
+                    
+                    results.append(row_data)
                     
                     progress_bar.progress(completed / total_rows)
                     time.sleep(1)
